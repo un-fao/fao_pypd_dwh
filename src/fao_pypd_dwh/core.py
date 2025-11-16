@@ -209,10 +209,8 @@ class Workspace:
     def to_dwh(self):
         utils.create_workspace(self.id, self.label, self.source, self.note)
         for dim in self.dimensions.values():
-            dim.to_dwh(id)
+            dim.to_dwh(self.id)
         for measure in self.measures.values():
-            measure.to_dwh(id)
+            measure.to_dwh(self.id)
         for schema in self.schemas.values():
-            schema.to_dwh(id)
-            
-    
+            schema.to_dwh(self.id)
