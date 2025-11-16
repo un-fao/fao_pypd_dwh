@@ -19,7 +19,7 @@ schema = dwh.Schema(df, "a_schema", "A test schema")
 
 schema.set_dimensions(["first_column", dwh.Dimension(df.date_column, role="time")])
 
-schema.set_measures([dwh.Measure(df.measure_col, "same_measure", "The same measure", unit="memories", precision=2)])
+schema.set_measures([dwh.Measure(df.measure_col, label="Some measure", unit="kg", precision=2)])
 
 schema.to_dwh("your_workspace_id")
 ```

@@ -42,8 +42,19 @@ class Dimension:
     def to_dwh(self, workspace_id: str):
         copy = self.data.copy()
         if isinstance(copy, pd.Series):
-            copy = copy.apply(utils.to_string)
+            copy = copy.drop_duplicates().sort_values().apply(utils.to_string)
         else:
+            copy = copy.drop_duplicates().sort_values(by=self.index_column)
+
+            # Check if index_column is unique key for dimension
+            independant_cols = []
+            for col in copy.columns:
+                if col != self.index_column:
+                    if not copy.groupby(self.index_column)[col].nunique().le(1).all():
+                        independant_cols.append(col)
+            if independant_cols:
+                raise ValueError(f"Error: columns {independant_cols} do not fully depend on index column '{self.index_column}'")
+
             copy[self.index_column] = copy[self.index_column].apply(utils.to_string)
             for col in copy.select_dtypes(exclude=['number']).columns:
                 copy[col] = copy[col].apply(utils.to_string)
@@ -60,7 +71,7 @@ class Dimension:
 class Measure:
     def __init__(
         self,
-        data: pd.Series,
+        data: pd.Series | None = None,
         id: str | None = None,
         label: str | None = None,
         unit: str|None = None,
@@ -72,7 +83,7 @@ class Measure:
     ):
         self.data = data
         if id is None:
-            if data.name:
+            if data is not None and data.name is not None:
                 id = data.name
             else:
                 raise ValueError("An id must be specified")

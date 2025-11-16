@@ -49,7 +49,7 @@ def upload_dimesion(
     labels_column: str | None = None,
 ):
     if index_column is None:
-        index_column = dimension_id
+        index_column = dimension_id   
 
     jsonstat_dict = {"version": "2.0", "class": "dimension", "label": dimension_label}
 
