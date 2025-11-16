@@ -59,5 +59,5 @@ workspace.to_dwh()
 
 # Installation
 ```
-pip install git+https://github.com/yourusername/fao_pypd_dwh.git@main#egg=fao_pypd_dwh
+pip install git+https://github.com/un-fao/fao_pypd_dwh.git@main#egg=fao_pypd_dwh
 ```
