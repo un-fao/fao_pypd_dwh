@@ -51,7 +51,7 @@ schema.set_dimensions([
     dwh.Dimension(df.date_column, role="time"), 
     "male"
     ])
-schema.set_measures([dwh.Measure(df.measure_col, "Measure Label", unit="kg", precision=2)])
+schema.set_measures([dwh.Measure(df.measure_col, label="Measure Label", unit="kg", precision=2)])
 
 workspace.add_schema(schema)
 workspace.to_dwh()
