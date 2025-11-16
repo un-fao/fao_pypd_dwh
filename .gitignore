@@ -1,1 +1,24 @@
 test.ipynb
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+.env/
+
+# Packaging output
+build/
+dist/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS-specific
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
