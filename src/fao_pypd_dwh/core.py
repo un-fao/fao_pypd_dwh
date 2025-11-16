@@ -141,6 +141,12 @@ class Schema:
             if self._append_owner_measures is not None:
                 self._append_owner_measures(measure)
         return self
+    
+    def _sync(self):
+        if self._append_owner_dimensions is not None:
+            self._append_owner_dimensions(*self.dimensions)
+        if self._append_owner_measures is not None:
+            self._append_owner_measures(*self.measures)
 
     def to_dwh(self, workspace_id: str) -> Self:
         dim_ids = [i.id for i in self.dimensions]
@@ -179,6 +185,7 @@ class Workspace:
         for schema in schemas:
             schema._append_owner_dimensions = self.add_dimension
             schema._append_owner_measures = self.add_measure
+            schema._sync()
             self.schemas[schema.id] = schema
         return self
 
