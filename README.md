@@ -10,16 +10,31 @@ import fao_pypd_dwh as dwh
 import pandas as pd
 import datetime
 
-df = pd.DataFrame({"first_column": [1,2,3],
-                "another_column":["one","two","three"],
-                "date_column":[datetime.date(2024,1,1), datetime.date(2024,1,2), datetime.date(2024,1,3)],
-                "measure_col":[1.12, 10, None]})
+df = pd.DataFrame(
+    {
+        "country_id": [1, 1, 2, 3],
+        "country_name": ["Italy", "Italy", "Egypt", "France"],
+        "another_column": ["dog", "cat", "pigeon", "opossum"],
+        "date_column": [
+            datetime.date(2024, 1, 1),
+            datetime.date(2024, 1, 2),
+            datetime.date(2024, 1, 3),
+            datetime.date(2024, 1, 4),
+        ],
+        "confirmed": [True, False, True, False],
+        "measure_col": [1.12, 10, None, 35],
+    }
+)   
+
+dwh.create_workspace("pypd_dwh_test", "Library fao_pypd_dwh test workspace")
 
 schema = dwh.Schema(df, "a_schema", "A test schema")
+schema.set_dimensions([
+    dwh.Dimension(df[["country_id", "country_name"]], index_column="country_id", labels_column="country_name"), 
+    dwh.Dimension(df.date_column, role="time"), 
+    "confirmed"
+    ])
+schema.set_measures([dwh.Measure(df.measure_col, "some_measure", "Some measure label", unit="kg", precision=2)])
 
-schema.set_dimensions(["first_column", dwh.Dimension(df.date_column, role="time")])
-
-schema.set_measures([dwh.Measure(df.measure_col, label="Some measure", unit="kg", precision=2)])
-
-schema.to_dwh("your_workspace_id")
+schema.to_dwh("pypd_dwh_test")
 ```
