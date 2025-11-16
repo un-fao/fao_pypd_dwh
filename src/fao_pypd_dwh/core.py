@@ -1,5 +1,7 @@
 from . import utils
 
+from typing import Self
+
 import pandas as pd
 
 
@@ -122,19 +124,21 @@ class Schema:
         self.label = label
         self.workspace_id = workspace_id
 
-    def set_dimensions(self, dimensions:list[Dimension|str]):
+    def set_dimensions(self, dimensions:list[Dimension|str]) -> Self:
         for dim in dimensions:
             if isinstance(dim, str):
                 dim = Dimension(data=self.df[dim])
             self.dimensions.append(dim)
+        return self
 
-    def set_measures(self, measures:list[Measure|str]):
+    def set_measures(self, measures:list[Measure|str]) -> Self:
         for measure in measures:
             if isinstance(measure, str):
                 measure = Measure(data=self.df[measure])
             self.measures.append(measure)
+        return self
 
-    def to_dwh(self, workspace_id: str|None = None):
+    def to_dwh(self, workspace_id: str|None = None) -> Self:
         if workspace_id is None:
             if self.workspace_id is None:
                 raise ValueError("A workspace_id must be specified")
@@ -156,3 +160,4 @@ class Schema:
             [i.id for i in self.dimensions if i.role == "geo"],
             [col for col in self.df.columns if col not in dim_ids and col not in mes_ids]
         )
+        return self

@@ -9,7 +9,7 @@ description = "Utilities bridging pandas and FAO DWH server APIs."
 authors = [{ name = "Marco Pirrelli", email = "m.pirrelli@goreply.io" }]
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "pandas>=1.5",
     "requests>=2.0"
