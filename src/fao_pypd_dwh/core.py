@@ -5,9 +5,6 @@ from typing import Self
 import pandas as pd
 
 
-def create_workspace(id: str, label: str, source: str|None = None, note: list[str]|None = None):
-    return utils.create_workspace(id=id, label=label, source=source, note=note)
-
 class Dimension:
     def __init__(
         self,
@@ -99,7 +96,7 @@ class Measure:
         self.max = max
         self.nodata = nodata
         self.aggregator = aggregator
-        
+
     def to_dwh(self, workspace_id: str):
         utils.upload_measure(
             workspace_id,
@@ -113,22 +110,28 @@ class Measure:
             self.aggregator,
         )
 
+
 class Schema:
     dimensions = []
     measures = []
-    def __init__(self, df:pd.DataFrame, id:str, label:str|None = None, workspace_id:str = None):
+    _append_owner_dimensions = None
+    _append_owner_measures = None
+
+    def __init__(self, df:pd.DataFrame, id:str, label:str|None = None):
+        self.workspace = workspace
         self.df = df
         self.id = id
         if label is None:
             label = id
         self.label = label
-        self.workspace_id = workspace_id
 
     def set_dimensions(self, dimensions:list[Dimension|str]) -> Self:
         for dim in dimensions:
             if isinstance(dim, str):
                 dim = Dimension(data=self.df[dim])
             self.dimensions.append(dim)
+            if self._append_owner_dimensions is not None:
+                self._append_owner_dimensions(dim)
         return self
 
     def set_measures(self, measures:list[Measure|str]) -> Self:
@@ -136,18 +139,11 @@ class Schema:
             if isinstance(measure, str):
                 measure = Measure(data=self.df[measure])
             self.measures.append(measure)
+            if self._append_owner_measures is not None:
+                self._append_owner_measures(measure)
         return self
 
-    def to_dwh(self, workspace_id: str|None = None) -> Self:
-        if workspace_id is None:
-            if self.workspace_id is None:
-                raise ValueError("A workspace_id must be specified")
-            else:
-                workspace_id = self.workspace_id
-        for dim in self.dimensions:
-            dim.to_dwh(workspace_id=workspace_id)
-        for measure in self.measures:
-            measure.to_dwh(workspace_id=workspace_id)
+    def to_dwh(self, workspace_id: str) -> Self:
         dim_ids = [i.id for i in self.dimensions]
         mes_ids = [i.id for i in self.measures]
         utils.upload_schema(
@@ -161,3 +157,63 @@ class Schema:
             [col for col in self.df.columns if col not in dim_ids and col not in mes_ids]
         )
         return self
+
+
+class Workspace:
+    dimensions = {}
+    measures = {}    
+    schemas = {}
+
+    def __init__(
+        self,
+        id: str,
+        label: str,
+        source: str | None = None,
+        note: list[str] | None = None,
+    ):
+        self.id = id
+        self.label = label
+        self.source = source
+        self.note = note
+
+    def add_schema(self, *schemas: Schema) -> Self:
+        for schema in schemas:
+            schema._append_owner_dimensions = self.add_dimension
+            schema._append_owner_measures = self.add_measure
+            self.schemas[schema.id] = schema
+        return self
+
+    def remove_schema(self, schema_id: str) -> Self:
+        self.schemas[schema_id]._append_owner_dimensions = None
+        self.schemas[schema_id]._append_owner_measures = None
+        del self.schemas[schema_id]
+        return self
+
+    def add_dimension(self, *dimensions: Dimension) -> Self:
+        for dimension in dimensions:
+            self.dimensions[dimension.id] = dimension
+        return self
+
+    def remove_dimension(self, dimension_id: str) -> Self:
+        del self.dimensions[dimension_id]
+        return self
+
+    def add_measure(self, *measures: Measure) -> Self:
+        for measure in measures:
+            self.measures[measure.id] = measure
+        return self
+
+    def remove_measure(self, measure_id: str) -> Self:
+        del self.measures[measure_id]
+        return self
+
+    def to_dwh(self):
+        utils.create_workspace(self.id, self.label, self.source, self.note)
+        for dim in self.dimensions.values():
+            dim.to_dwh(workspace_id=id)
+        for measure in self.measures.values():
+            measure.to_dwh(workspace_id=id)
+        for schema in self.schemas.values():
+            schema.to_dwh(Workspace_id=id)
+            
+    

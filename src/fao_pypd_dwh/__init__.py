@@ -1,3 +1,3 @@
-from .core import Schema, Dimension, Measure, create_workspace
+from .core import Workspace, Schema, Dimension, Measure
 
-__all__ = ["Schema", "Dimension", "Measure", "create_workspace"]
+__all__ = ["workspace", "Schema", "Dimension", "Measure"]

@@ -27,17 +27,34 @@ df = pd.DataFrame(
     }
 )   
 
-dwh.create_workspace("pypd_dwh_test", "Library fao_pypd_dwh test workspace")
+df = pd.DataFrame(
+    {
+        "country_id": [1, 1, 2, 3],
+        "country_name": ["Italy", "Italy", "Egypt", "France"],
+        "another_column": ["dog", "cat", "pigeon", "opossum"],
+        "date_column": [
+            datetime.date(2024, 1, 1),
+            datetime.date(2024, 1, 2),
+            datetime.date(2024, 1, 3),
+            datetime.date(2024, 1, 4),
+        ],
+        "male": [True, False, True, False],
+        "measure_col": [1.12, 10, None, 35],
+    }
+)
+
+workspace = dwh.Workspace("pypd_dwh_test", "Library fao_pypd_dwh test workspace")
 
 schema = dwh.Schema(df, "a_schema", "A test schema")
 schema.set_dimensions([
     dwh.Dimension(df[["country_id", "country_name"]], index_column="country_id", labels_column="country_name"), 
     dwh.Dimension(df.date_column, role="time"), 
-    "confirmed"
+    "male"
     ])
-schema.set_measures([dwh.Measure(df.measure_col, "some_measure", "Some measure label", unit="kg", precision=2)])
+schema.set_measures([dwh.Measure(df.measure_col, "Measure Label", unit="kg", precision=2)])
 
-schema.to_dwh("pypd_dwh_test")
+workspace.add_schema(schema)
+workspace.to_dwh()
 ```
 
 #Installation
