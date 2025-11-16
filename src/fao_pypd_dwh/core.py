@@ -56,7 +56,7 @@ class Dimension:
                 raise ValueError(f"Error: columns {independant_cols} do not fully depend on index column '{self.index_column}'")
 
             copy[self.index_column] = copy[self.index_column].apply(utils.to_string)
-            for col in copy.select_dtypes(exclude=['number']).columns:
+            for col in copy.select_dtypes(exclude=['number', bool]).columns:
                 copy[col] = copy[col].apply(utils.to_string)
         utils.upload_dimesion(
             data=copy,
