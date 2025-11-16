@@ -1,6 +1,7 @@
 from . import utils
 
 from typing import Self
+import time
 
 import pandas as pd
 
@@ -219,5 +220,6 @@ class Workspace:
             dim.to_dwh(self.id)
         for measure in self.measures.values():
             measure.to_dwh(self.id)
+        time.sleep(3)
         for schema in self.schemas.values():
             schema.to_dwh(self.id)
