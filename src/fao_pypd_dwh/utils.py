@@ -74,6 +74,7 @@ def upload_dimesion(
         ),
         "referenced": False,
         "referenced_by": [],
+        "additional_bq_fields": {}
     }
 
     if role:
@@ -82,8 +83,6 @@ def upload_dimesion(
     if isinstance(data, pd.DataFrame):
         for col in data.columns:
             if col != index_column and col != labels_column:
-                if "additional_bq_fields" not in jsonstat_dict["extension"]:
-                    jsonstat_dict["extension"]["additional_bq_fields"] = {}
                 jsonstat_dict["extension"]["additional_bq_fields"][col] = (
                     data[[index_column, col]].set_index(index_column)[col].to_dict()
                 )
@@ -195,11 +194,10 @@ def upload_schema(
             | {"measures": {"href":f"{API_BASE}/workspaces/{workspace_id}/measures:combine?{'&'.join([f'measure_ids={id}' for id in measure_ids])}"}},
         "extension": {
             "resource_id": schema_id,
+            "additional_bq_fields":{}
         }
     }
     for col in additional_bq_fields:
-        if "additional_bq_fields" not in jsonstat_dict["extension"]:
-            jsonstat_dict["extension"]["additional_bq_fields"] = {}
         jsonstat_dict["extension"]["additional_bq_fields"][col] = {}
 
     res_post = requests.post(
