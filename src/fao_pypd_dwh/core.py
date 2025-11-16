@@ -118,7 +118,6 @@ class Schema:
     _append_owner_measures = None
 
     def __init__(self, df:pd.DataFrame, id:str, label:str|None = None):
-        self.workspace = workspace
         self.df = df
         self.id = id
         if label is None:
