@@ -50,6 +50,12 @@ def upload_dimesion(
 ):
     if index_column is None:
         index_column = dimension_id   
+        
+    if isinstance(data, pd.DataFrame):
+        if index_column not in data.columns:
+            raise ValueError(f"Index column {index_column} does not exist in the provided DataFrame")
+        if labels_column is not None and labels_column not in data.columns:
+            raise ValueError(f"Labels column {labels_column} does not exist in the provided DataFrame")
 
     jsonstat_dict = {"version": "2.0", "class": "dimension", "label": dimension_label}
 
