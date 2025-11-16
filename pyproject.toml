@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fao_pypd_dwh"
+version = "0.1.0"
+description = "Utilities bridging pandas and FAO DWH server APIs."
+authors = [{ name = "Marco Pirrelli", email = "m.pirrelli@goreply.io" }]
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=1.5",
+    "requests>=2.0"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.urls]
+Homepage = "https://github.com/your-org/fao_pypd_dwh"
+Issues = "https://github.com/your-org/fao_pypd_dwh/issues"
