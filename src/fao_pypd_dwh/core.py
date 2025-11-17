@@ -113,8 +113,6 @@ class Measure:
 
 
 class Schema:
-    _append_owner_dimensions = None
-    _append_owner_measures = None
 
     def __init__(self, df:pd.DataFrame, id:str, label:str|None = None):
         self.df = df
@@ -124,6 +122,8 @@ class Schema:
         self.label = label
         self.dimensions = []
         self.measures = []
+        self._append_owner_dimensions = None
+        self._append_owner_measures = None
 
     def set_dimensions(self, dimensions:list[Dimension|str]) -> Self:
         for dim in dimensions:
@@ -142,7 +142,7 @@ class Schema:
             if self._append_owner_measures is not None:
                 self._append_owner_measures(measure)
         return self
-    
+
     def _sync(self):
         if self._append_owner_dimensions is not None:
             self._append_owner_dimensions(*self.dimensions)
@@ -166,9 +166,6 @@ class Schema:
 
 
 class Workspace:
-    dimensions = {}
-    measures = {}    
-    schemas = {}
 
     def __init__(
         self,
@@ -181,6 +178,10 @@ class Workspace:
         self.label = label
         self.source = source
         self.note = note
+
+        self.dimensions = {}
+        self.measures = {}
+        self.schemas = {}
 
     def add_schema(self, *schemas: Schema) -> Self:
         for schema in schemas:
