@@ -113,8 +113,6 @@ class Measure:
 
 
 class Schema:
-    dimensions = []
-    measures = []
     _append_owner_dimensions = None
     _append_owner_measures = None
 
@@ -124,6 +122,8 @@ class Schema:
         if label is None:
             label = id
         self.label = label
+        self.dimensions = []
+        self.measures = []
 
     def set_dimensions(self, dimensions:list[Dimension|str]) -> Self:
         for dim in dimensions:

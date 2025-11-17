@@ -3,6 +3,7 @@ from .constants import API_BASE
 import requests
 import datetime
 import logging
+import json
 
 import pandas as pd
 
@@ -50,7 +51,7 @@ def upload_dimesion(
 ):
     if index_column is None:
         index_column = dimension_id   
-        
+
     if isinstance(data, pd.DataFrame):
         if index_column not in data.columns:
             raise ValueError(f"Index column {index_column} does not exist in the provided DataFrame")
@@ -86,7 +87,7 @@ def upload_dimesion(
                 jsonstat_dict["extension"]["additional_bq_fields"][col] = (
                     data[[index_column, col]].set_index(index_column)[col].to_dict()
                 )
-                
+
     res = requests.get(f"{API_BASE}/workspaces/{workspace_id}/dimensions/{dimension_id}")
     if res.status_code == 404:
         references = None
@@ -99,6 +100,7 @@ def upload_dimesion(
         jsonstat_dict["extension"]["referenced"] = True
         jsonstat_dict["extension"]["referenced_by"] = references
 
+    logger.info(json.dumps(jsonstat_dict))
     if res.status_code == 404:
         res_post = requests.post(
             f"{API_BASE}/workspaces/{workspace_id}/dimensions",
@@ -156,6 +158,8 @@ def upload_measure(
         },
         "resource_id": measure_id,
     }
+
+    logger.info(json.dumps(jsonstat_dict))
     res_post = requests.post(
         f"{API_BASE}/workspaces/{workspace_id}/measures",
         json=jsonstat_dict
@@ -200,6 +204,7 @@ def upload_schema(
     for col in additional_bq_fields:
         jsonstat_dict["extension"]["additional_bq_fields"][col] = {}
 
+    logger.info(json.dumps(jsonstat_dict))
     res_post = requests.post(
         f"{API_BASE}/workspaces/{workspace_id}/schemas", json=jsonstat_dict
     )
