@@ -10,6 +10,8 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 def to_string(value) -> str:
+    if pd.isna(value):
+        raise ValueError("Index column cannot be NaN")
     if isinstance(value, datetime.datetime):
         return value.strftime("%Y-%m-%dT%H:%M:%S")
     elif isinstance(value, datetime.date):
@@ -39,6 +41,11 @@ def create_workspace(id: str, label: str, source: str|None = None, note: list[st
     else:
         raise Exception(f"Error checking workspace existence: {res.status_code} - {res.text}")
 
+def prepare_column_to_dict(data: pd.Series):
+    #replace with None
+    data = data.astype(object).where(pd.notna(data), None)
+    return data.to_dict()    
+
 
 def upload_dimesion(
     data: pd.DataFrame | pd.Series,
@@ -65,7 +72,7 @@ def upload_dimesion(
             raise ValueError("index_column must be provided when data is a DataFrame.")
         jsonstat_dict["category"] = {"index": data[index_column].tolist()}
         if labels_column:
-            jsonstat_dict["category"]["label"] = data.set_index(index_column)[labels_column].to_dict()
+            jsonstat_dict["category"]["label"] = prepare_column_to_dict(data.set_index(index_column)[labels_column])
     else:
         jsonstat_dict["category"] = {"index": data.tolist()}
 
@@ -84,9 +91,7 @@ def upload_dimesion(
     if isinstance(data, pd.DataFrame):
         for col in data.columns:
             if col != index_column and col != labels_column:
-                jsonstat_dict["extension"]["additional_bq_fields"][col] = (
-                    data[[index_column, col]].set_index(index_column)[col].to_dict()
-                )
+                jsonstat_dict["extension"]["additional_bq_fields"][col] = prepare_column_to_dict(data[[index_column, col]].set_index(index_column)[col])
 
     res = requests.get(f"{API_BASE}/workspaces/{workspace_id}/dimensions/{dimension_id}")
     if res.status_code == 404:

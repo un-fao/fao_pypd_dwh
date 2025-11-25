@@ -42,11 +42,16 @@ class Dimension:
     def to_dwh(self, workspace_id: str):
         copy = self.data.copy()
         if isinstance(copy, pd.Series):
-            copy = copy.drop_duplicates().sort_values().apply(utils.to_string)
+            copy = copy.drop_duplicates().sort_values()
+            if copy.isna().any():
+                raise ValueError(f"Error: dimension '{self.id}' contains null values")
+            copy = copy.apply(utils.to_string)
         else:
             copy = copy.drop_duplicates().sort_values(by=self.index_column)
 
             # Check if index_column is unique key for dimension
+            if copy[self.index_column].isna().any():
+                raise ValueError(f"Error: column '{self.index_column}' contains null values")
             independant_cols = []
             for col in copy.columns:
                 if col != self.index_column:
