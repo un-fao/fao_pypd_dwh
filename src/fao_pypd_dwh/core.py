@@ -221,7 +221,7 @@ class Workspace:
         return self
 
     def to_dwh(self):
-        utils.create_workspace(self.id, self.label, self.source, self.note)
+        utils.upload_workspace(self.id, self.label, self.source, self.note)
         for dim in self.dimensions.values():
             dim.to_dwh(self.id)
         for measure in self.measures.values():

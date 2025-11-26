@@ -20,23 +20,23 @@ def to_string(value) -> str:
         return str(value)
 
 
-def create_workspace(id: str, label: str, source: str|None = None, note: list[str]|None = None):
+def upload_workspace(id: str, label: str, source: str|None = None, note: list[str]|None = None):
+    jsonstat_dict = {
+        "version": "2.0",
+        "class": "collection",
+        "label": label,
+        "updated": datetime.datetime.now().strftime("%Y-%m-%d"),
+        "source": source,
+        "note": note,
+        "extension": {"resource_id": id},
+    }
+    logger.info(json.dumps(jsonstat_dict))
     res = requests.get(f"{API_BASE}/workspaces/{id}")
     if res.status_code == 200:
-        logger.info(f"Workspace {id} already exists.")
+        post_res = requests.put(f"{API_BASE}/workspaces/{id}", json=jsonstat_dict)
+        post_res.raise_for_status()
         return id
     elif res.status_code == 404:
-        jsonstat_dict = {
-            "version": "2.0",
-            "class": "collection",
-            "label": label,
-            "updated": datetime.datetime.now().strftime("%Y-%m-%d"),
-            "source": source,
-            "note": note,
-            "extension": {"resource_id": id},
-        }
-        post_res = requests.post(f"{API_BASE}/workspaces", json=jsonstat_dict)
-        post_res.raise_for_status()
         return id
     else:
         raise Exception(f"Error checking workspace existence: {res.status_code} - {res.text}")
