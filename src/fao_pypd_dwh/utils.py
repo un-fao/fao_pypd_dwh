@@ -37,6 +37,8 @@ def upload_workspace(id: str, label: str, source: str|None = None, note: list[st
         post_res.raise_for_status()
         return id
     elif res.status_code == 404:
+        post_res = requests.post(f"{API_BASE}/workspaces", json=jsonstat_dict)
+        post_res.raise_for_status()
         return id
     else:
         raise Exception(f"Error checking workspace existence: {res.status_code} - {res.text}")
