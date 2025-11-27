@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fao_pypd_dwh"
-version = "0.2.12"
+version = "0.2.13"
 description = "Utilities bridging pandas and FAO DWH server APIs."
 authors = [{ name = "Marco Pirrelli", email = "m.pirrelli@goreply.io" }]
 readme = "README.md"

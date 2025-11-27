@@ -10,8 +10,6 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 def to_string(value) -> str:
-    if pd.isna(value):
-        raise ValueError("Index column cannot be NaN")
     if isinstance(value, datetime.datetime):
         return value.strftime("%Y-%m-%dT%H:%M:%S")
     elif isinstance(value, datetime.date):
