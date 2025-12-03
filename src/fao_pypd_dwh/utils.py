@@ -10,12 +10,20 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 def to_string(value) -> str:
-    if isinstance(value, datetime.datetime):
+    if pd.isna(value):
+        return None
+    elif isinstance(value, datetime.datetime):
         return value.strftime("%Y-%m-%dT%H:%M:%S")
     elif isinstance(value, datetime.date):
         return value.strftime("%Y-%m-%d")
     else:
         return str(value)
+
+
+def prepare_column_to_dict(data: pd.Series):
+    # replace with None
+    data = data.astype(object).where(pd.notna(data), None)
+    return data.to_dict()
 
 
 def upload_workspace(id: str, label: str, source: str|None = None, note: list[str]|None = None, environment: str = "review"):
@@ -47,11 +55,6 @@ def upload_workspace(id: str, label: str, source: str|None = None, note: list[st
         return id
     else:
         raise Exception(f"Error checking workspace existence: {res.status_code} - {res.text}")
-
-def prepare_column_to_dict(data: pd.Series):
-    #replace with None
-    data = data.astype(object).where(pd.notna(data), None)
-    return data.to_dict()    
 
 
 def upload_dimesion(
