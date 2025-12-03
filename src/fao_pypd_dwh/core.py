@@ -39,7 +39,7 @@ class Dimension:
         self.index_column = index_column
         self.labels_column = labels_column
 
-    def to_dwh(self, workspace_id: str):
+    def to_dwh(self, workspace_id: str, environment: str = "review"):
         copy = self.data.copy()
         if isinstance(copy, pd.Series):
             copy = copy.drop_duplicates().sort_values()
@@ -71,6 +71,7 @@ class Dimension:
             role=self.role,
             index_column=self.index_column,
             labels_column=self.labels_column,
+            environment=environment,
         )
 
 class Measure:
@@ -103,7 +104,7 @@ class Measure:
         self.nodata = nodata
         self.aggregator = aggregator
 
-    def to_dwh(self, workspace_id: str):
+    def to_dwh(self, workspace_id: str, environment: str = "review"):
         utils.upload_measure(
             workspace_id,
             self.id,
@@ -114,6 +115,7 @@ class Measure:
             self.max,
             self.nodata,
             self.aggregator,
+            environment=environment,
         )
 
 
@@ -154,7 +156,7 @@ class Schema:
         if self._append_owner_measures is not None:
             self._append_owner_measures(*self.measures)
 
-    def to_dwh(self, workspace_id: str) -> Self:
+    def to_dwh(self, workspace_id: str, environment: str = "review") -> Self:
         dim_ids = [i.id for i in self.dimensions]
         mes_ids = [i.id for i in self.measures]
         utils.upload_schema(
@@ -165,7 +167,8 @@ class Schema:
             mes_ids,
             [i.id for i in self.dimensions if i.role == "time"],
             [i.id for i in self.dimensions if i.role == "geo"],
-            [col for col in self.df.columns if col not in dim_ids and col not in mes_ids]
+            [col for col in self.df.columns if col not in dim_ids and col not in mes_ids],
+            environment=environment,
         )
         return self
 
@@ -178,11 +181,13 @@ class Workspace:
         label: str,
         source: str | None = None,
         note: list[str] | None = None,
+        environment: str = "review",
     ):
         self.id = id
         self.label = label
         self.source = source
         self.note = note
+        self.environment = environment
 
         self.dimensions = {}
         self.measures = {}
@@ -223,9 +228,9 @@ class Workspace:
     def to_dwh(self):
         utils.upload_workspace(self.id, self.label, self.source, self.note)
         for dim in self.dimensions.values():
-            dim.to_dwh(self.id)
+            dim.to_dwh(self.id, self.environment)
         for measure in self.measures.values():
-            measure.to_dwh(self.id)
+            measure.to_dwh(self.id, self.environment)
         time.sleep(3)
         for schema in self.schemas.values():
-            schema.to_dwh(self.id)
+            schema.to_dwh(self.id, self.environment)

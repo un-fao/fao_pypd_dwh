@@ -1,4 +1,4 @@
-from .constants import API_BASE
+from .constants import API_BASE_REVIEW, API_BASE_PROD
 
 import requests
 import datetime
@@ -18,7 +18,14 @@ def to_string(value) -> str:
         return str(value)
 
 
-def upload_workspace(id: str, label: str, source: str|None = None, note: list[str]|None = None):
+def upload_workspace(id: str, label: str, source: str|None = None, note: list[str]|None = None, environment: str = "review"):
+    if environment in ("review", "rev", "fao-dwh-review"):
+        api_base = API_BASE_REVIEW
+    elif environment in ("prod", "production", "fao-dwh"):
+        api_base = API_BASE_PROD
+    else:
+        raise ValueError(f"Unknown environment: {environment}. Please use 'review' or 'production'.")
+    
     jsonstat_dict = {
         "version": "2.0",
         "class": "collection",
@@ -29,13 +36,13 @@ def upload_workspace(id: str, label: str, source: str|None = None, note: list[st
         "extension": {"resource_id": id},
     }
     logger.info(json.dumps(jsonstat_dict))
-    res = requests.get(f"{API_BASE}/workspaces/{id}")
+    res = requests.get(f"{api_base}/workspaces/{id}")
     if res.status_code == 200:
-        post_res = requests.put(f"{API_BASE}/workspaces/{id}", json=jsonstat_dict)
+        post_res = requests.put(f"{api_base}/workspaces/{id}", json=jsonstat_dict)
         post_res.raise_for_status()
         return id
     elif res.status_code == 404:
-        post_res = requests.post(f"{API_BASE}/workspaces", json=jsonstat_dict)
+        post_res = requests.post(f"{api_base}/workspaces", json=jsonstat_dict)
         post_res.raise_for_status()
         return id
     else:
@@ -55,7 +62,16 @@ def upload_dimesion(
     role: str | None = None,
     index_column: str | None = None,
     labels_column: str | None = None,
+    environment: str = "review"
 ):
+    
+    if environment in ("review", "rev", "fao-dwh-review"):
+        api_base = API_BASE_REVIEW
+    elif environment in ("prod", "production", "fao-dwh"):
+        api_base = API_BASE_PROD
+    else:
+        raise ValueError(f"Unknown environment: {environment}. Please use 'review' or 'production'.")
+    
     if index_column is None:
         index_column = dimension_id   
 
@@ -93,7 +109,7 @@ def upload_dimesion(
             if col != index_column and col != labels_column:
                 jsonstat_dict["extension"]["additional_bq_fields"][col] = prepare_column_to_dict(data[[index_column, col]].set_index(index_column)[col])
 
-    res = requests.get(f"{API_BASE}/workspaces/{workspace_id}/dimensions/{dimension_id}")
+    res = requests.get(f"{api_base}/workspaces/{workspace_id}/dimensions/{dimension_id}")
     if res.status_code == 404:
         references = None
     elif res.status_code == 200:
@@ -108,13 +124,13 @@ def upload_dimesion(
     logger.info(json.dumps(jsonstat_dict))
     if res.status_code == 404:
         res_post = requests.post(
-            f"{API_BASE}/workspaces/{workspace_id}/dimensions",
+            f"{api_base}/workspaces/{workspace_id}/dimensions",
             json=jsonstat_dict
         )
         res_post.raise_for_status()
     else:
         res_put = requests.put(
-            f"{API_BASE}/workspaces/{workspace_id}/dimensions/{dimension_id}",
+            f"{api_base}/workspaces/{workspace_id}/dimensions/{dimension_id}",
             json=jsonstat_dict,
         )
         res_put.raise_for_status()
@@ -124,15 +140,24 @@ def upload_measure(
     workspace_id: str,
     measure_id: str,
     measure_label: str,
-    unit: str|None = None,
-    precision: int|None = None,
-    min = None,
-    max = None,
-    nodata = None,
-    aggregator: str|None = 'SUM',
+    unit: str | None = None,
+    precision: int | None = None,
+    min=None,
+    max=None,
+    nodata=None,
+    aggregator: str | None = "SUM",
+    environment: str = "review",
 ):
+    if environment in ("review", "rev", "fao-dwh-review"):
+        api_base = API_BASE_REVIEW
+    elif environment in ("prod", "production", "fao-dwh"):
+        api_base = API_BASE_PROD
+    else:
+        raise ValueError(
+            f"Unknown environment: {environment}. Please use 'review' or 'production'."
+        )
 
-    res = requests.get(f"{API_BASE}/workspaces/{workspace_id}/measures/{measure_id}")
+    res = requests.get(f"{api_base}/workspaces/{workspace_id}/measures/{measure_id}")
     if res.status_code == 200:
         logger.info(f"Measure {workspace_id}/{measure_id} already exists")
         return
@@ -166,7 +191,7 @@ def upload_measure(
 
     logger.info(json.dumps(jsonstat_dict))
     res_post = requests.post(
-        f"{API_BASE}/workspaces/{workspace_id}/measures",
+        f"{api_base}/workspaces/{workspace_id}/measures",
         json=jsonstat_dict
     )
     res_post.raise_for_status()
@@ -181,8 +206,19 @@ def upload_schema(
     time_dims: list[str],
     geo_dims: list[str],
     additional_bq_fields: list[str],
+    environment: str = "review",
 ):
-    res = requests.get(f"{API_BASE}/workspaces/{workspace_id}/schemas/{schema_id}")
+    
+    if environment in ("review", "rev", "fao-dwh-review"):
+        api_base = API_BASE_REVIEW
+    elif environment in ("prod", "production", "fao-dwh"):
+        api_base = API_BASE_PROD
+    else:
+        raise ValueError(
+            f"Unknown environment: {environment}. Please use 'review' or 'production'."
+        )
+        
+    res = requests.get(f"{api_base}/workspaces/{workspace_id}/schemas/{schema_id}")
     if res.status_code == 200:
         logger.info(f"Schema {workspace_id}/{schema_id} already exists")
         return
@@ -199,8 +235,8 @@ def upload_schema(
             "metric":["measures"]
         },
         "value": [],
-        "dimension": {id: {"href":f"{API_BASE}/workspaces/{workspace_id}/dimensions/{id}"} for id in dimension_ids}
-            | {"measures": {"href":f"{API_BASE}/workspaces/{workspace_id}/measures:combine?{'&'.join([f'measure_ids={id}' for id in measure_ids])}"}},
+        "dimension": {id: {"href":f"{api_base}/workspaces/{workspace_id}/dimensions/{id}"} for id in dimension_ids}
+            | {"measures": {"href":f"{api_base}/workspaces/{workspace_id}/measures:combine?{'&'.join([f'measure_ids={id}' for id in measure_ids])}"}},
         "extension": {
             "resource_id": schema_id,
             "additional_bq_fields":{}
@@ -211,6 +247,6 @@ def upload_schema(
 
     logger.info(json.dumps(jsonstat_dict))
     res_post = requests.post(
-        f"{API_BASE}/workspaces/{workspace_id}/schemas", json=jsonstat_dict
+        f"{api_base}/workspaces/{workspace_id}/schemas", json=jsonstat_dict
     )
     res_post.raise_for_status()
