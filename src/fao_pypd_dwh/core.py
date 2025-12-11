@@ -159,6 +159,25 @@ class Schema:
     def to_dwh(self, workspace_id: str, environment: str = "review") -> Self:
         dim_ids = [i.id for i in self.dimensions]
         mes_ids = [i.id for i in self.measures]
+        additional = []
+        for col in self.df.columns:
+            is_used = False
+            for dim in self.dimensions:
+                if isinstance(dim.data, pd.Series):
+                    if col == dim.data.name:
+                        is_used = True
+                        break
+                else:
+                    if col in dim.data.columns:
+                        is_used = True
+                        break
+            for mes in self.measures:
+                if col == mes.id:
+                    is_used = True
+                    break
+            if not is_used:
+                additional.append(col)
+
         utils.upload_schema(
             workspace_id,
             self.id,
@@ -167,7 +186,7 @@ class Schema:
             mes_ids,
             [i.id for i in self.dimensions if i.role == "time"],
             [i.id for i in self.dimensions if i.role == "geo"],
-            [col for col in self.df.columns if col not in dim_ids and col not in mes_ids],
+            additional,
             environment=environment,
         )
         return self
