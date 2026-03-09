@@ -116,7 +116,7 @@ def upload_dimesion(
     if res.status_code == 404:
         references = None
     elif res.status_code == 200:
-        references = res.json().get("extension", {}).get("references", None)
+        references = res.json().get("extension", {}).get("referenced_by", None)
     else:
         raise Exception(f"Error checking dimension {workspace_id}/{dimension_id} existence: {res.status_code} - {res.text}")
 
