@@ -35,7 +35,7 @@ def upload_workspace(id: str, label: str, source: str|None = None, note: list[st
         api_base = API_BASE_PROD
     else:
         raise ValueError(f"Unknown environment: {environment}. Please use 'review' or 'production'.")
-    
+
     jsonstat_dict = {
         "version": "2.0",
         "class": "collection",
@@ -59,6 +59,31 @@ def upload_workspace(id: str, label: str, source: str|None = None, note: list[st
         raise Exception(f"Error checking workspace existence: {res.status_code} - {res.text}")
 
 
+def dimension_exists(
+    workspace_id: str, dimension_id: str, environment: str = "review"
+) -> bool:
+    if environment in ("review", "rev", "fao-dwh-review"):
+        api_base = API_BASE_REVIEW
+    elif environment in ("prod", "production", "fao-dwh"):
+        api_base = API_BASE_PROD
+    else:
+        raise ValueError(
+            f"Unknown environment: {environment}. Please use 'review' or 'production'."
+        )
+
+    res = requests.get(
+        f"{api_base}/workspaces/{workspace_id}/dimensions/{dimension_id}"
+    )
+    if res.status_code == 200:
+        return True
+    elif res.status_code == 404:
+        return False
+    else:
+        raise Exception(
+            f"Error checking dimension existence: {res.status_code} - {res.text}"
+        )
+
+
 def upload_dimesion(
     data: pd.DataFrame | pd.Series,
     workspace_id: str,
@@ -67,6 +92,7 @@ def upload_dimesion(
     role: str | None = None,
     index_column: str | None = None,
     labels_column: str | None = None,
+    merge_members: bool = False,
     environment: str = "review"
 ):
 
@@ -86,7 +112,9 @@ def upload_dimesion(
         if labels_column is not None and not labels_column in data.columns:
             raise ValueError(f"Labels column {labels_column} does not exist in the provided DataFrame")
 
-    jsonstat_dict = {"version": "2.0", "class": "dimension", "label": dimension_label}
+    exists = dimension_exists(workspace_id, dimension_id, environment)
+
+    jsonstat_dict = {"label": dimension_label}
 
     if isinstance(data, pd.DataFrame):
         if index_column is None:
@@ -98,128 +126,40 @@ def upload_dimesion(
         jsonstat_dict["category"] = {"index": data.tolist()}
 
     jsonstat_dict["extension"] = {
-        "resource_id": (
-            dimension_id if not dimension_id.startswith("dim_") else dimension_id[4:]
-        ),
-        "referenced": False,
-        "referenced_by": [],
         "additional_bq_fields": {}
     }
 
-    if role:
-        jsonstat_dict["extension"]["role"] = role
+    if not merge_members or not exists:
+        jsonstat_dict["extension"]["resource_id"] = dimension_id
+        if role:
+            jsonstat_dict["extension"]["role"] = role
 
     if isinstance(data, pd.DataFrame):
         for col in data.columns:
             if col != index_column and col != labels_column:
                 jsonstat_dict["extension"]["additional_bq_fields"][col] = prepare_column_to_dict(data[[index_column, col]].set_index(index_column)[col])
 
-    res = requests.get(f"{api_base}/workspaces/{workspace_id}/dimensions/{dimension_id}")
-    if res.status_code == 404:
-        references = None
-    elif res.status_code == 200:
-        references = res.json().get("extension", {}).get("referenced_by", None)
-    else:
-        raise Exception(f"Error checking dimension {workspace_id}/{dimension_id} existence: {res.status_code} - {res.text}")
-
-    if references:
-        jsonstat_dict["extension"]["referenced"] = True
-        jsonstat_dict["extension"]["referenced_by"] = references
-
     logger.info(json.dumps(jsonstat_dict))
-    if res.status_code == 404:
-        res_post = requests.post(
-            f"{api_base}/workspaces/{workspace_id}/dimensions",
-            json=jsonstat_dict
-        )
-        res_post.raise_for_status()
+
+    if exists:
+        if merge_members:
+            res = requests.patch(
+                f"{api_base}/workspaces/{workspace_id}/dimensions/{dimension_id}",
+                json=jsonstat_dict
+            )
+            res.raise_for_status()
+        else:
+            res = requests.put(
+                f"{api_base}/workspaces/{workspace_id}/dimensions/{dimension_id}",
+                json=jsonstat_dict
+            )
+            res.raise_for_status()
     else:
-        res_put = requests.put(
-            f"{api_base}/workspaces/{workspace_id}/dimensions/{dimension_id}",
+        res = requests.post(
+            f"{api_base}/workspaces/{workspace_id}/dimensions",
             json=jsonstat_dict,
         )
-        res_put.raise_for_status()
-
-
-def dimension_exists(workspace_id: str, dimension_id: str, environment: str = "review") -> bool:
-    if environment in ("review", "rev", "fao-dwh-review"):
-        api_base = API_BASE_REVIEW
-    elif environment in ("prod", "production", "fao-dwh"):
-        api_base = API_BASE_PROD
-    else:
-        raise ValueError(f"Unknown environment: {environment}. Please use 'review' or 'production'.")
-
-    res = requests.get(f"{api_base}/workspaces/{workspace_id}/dimensions/{dimension_id}")
-    if res.status_code == 200:
-        return True
-    elif res.status_code == 404:
-        return False
-    else:
-        raise Exception(f"Error checking dimension existence: {res.status_code} - {res.text}")
-
-
-def merge_dimesion_members(
-    data: pd.DataFrame | pd.Series,
-    workspace_id: str,
-    dimension_id: str,
-    index_column: str | None = None,
-    labels_column: str | None = None,
-    environment: str = "review",
-):
-
-    if environment in ("review", "rev", "fao-dwh-review"):
-        api_base = API_BASE_REVIEW
-    elif environment in ("prod", "production", "fao-dwh"):
-        api_base = API_BASE_PROD
-    else:
-        raise ValueError(
-            f"Unknown environment: {environment}. Please use 'review' or 'production'."
-        )
-
-    if index_column is None:
-        index_column = dimension_id
-
-    if isinstance(data, pd.DataFrame):
-        if index_column not in data.columns:
-            raise ValueError(
-                f"Index column {index_column} does not exist in the provided DataFrame"
-            )
-        if labels_column is not None and not labels_column in data.columns:
-            raise ValueError(
-                f"Labels column {labels_column} does not exist in the provided DataFrame"
-            )
-
-    jsonstat_dict = dict()
-
-    if isinstance(data, pd.DataFrame):
-        if index_column is None:
-            raise ValueError("index_column must be provided when data is a DataFrame.")
-        jsonstat_dict["category"] = {"index": data[index_column].tolist()}
-        if labels_column:
-            jsonstat_dict["category"]["label"] = prepare_column_to_dict(
-                data.set_index(index_column)[labels_column]
-            )
-    else:
-        jsonstat_dict["category"] = {"index": data.tolist()}
-
-    if isinstance(data, pd.DataFrame):
-        for col in data.columns:
-            if col != index_column and col != labels_column:
-                if "extension" not in jsonstat_dict:
-                    jsonstat_dict["extension"] = dict()
-                if "additional_bq_fields" not in jsonstat_dict["extension"]:
-                    jsonstat_dict["extension"]["additional_bq_fields"] = dict()
-                jsonstat_dict["extension"]["additional_bq_fields"][col] = (
-                    prepare_column_to_dict(
-                        data[[index_column, col]].set_index(index_column)[col]
-                    )
-                )
-
-    logger.info(json.dumps(jsonstat_dict))
-    res_patch = requests.patch(
-        f"{api_base}/workspaces/{workspace_id}/dimensions/{dimension_id}", json=jsonstat_dict
-    )
-    res_patch.raise_for_status()
+        res.raise_for_status()
 
 
 def upload_measure(

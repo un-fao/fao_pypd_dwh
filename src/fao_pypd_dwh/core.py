@@ -46,7 +46,7 @@ class Dimension:
         
         self.labels_column = labels_column
 
-    def to_dwh(self, workspace_id: str, environment: str = "review"):
+    def to_dwh(self, workspace_id: str, merge_members: bool = False, environment: str = "review"):
         copy = self.data.copy()
         if isinstance(copy, pd.Series):
             copy = copy.drop_duplicates().sort_values()
@@ -79,44 +79,7 @@ class Dimension:
             role=self.role,
             index_column=self.index_column,
             labels_column=self.labels_column,
-            environment=environment,
-        )
-
-    def update_members(self, workspace_id: str, environment: str = "review"):
-        if not utils.dimension_exists(workspace_id, self.id, environment=environment):
-            self.to_dwh(workspace_id, environment=environment)
-            return
-        
-        copy = self.data.copy()
-        if isinstance(copy, pd.Series):
-            copy = copy.drop_duplicates().sort_values()
-            if copy.isna().any():
-                raise ValueError(f"Error: dimension '{self.id}' contains null values")
-            copy = copy.apply(utils.to_string)
-        else:
-            copy = copy.drop_duplicates().sort_values(by=self.index_column)
-
-            # Check if index_column is unique key for dimension
-            if copy[self.index_column].isna().any():
-                raise ValueError(f"Error: column '{self.index_column}' contains null values")
-            independant_cols = []
-            for col in copy.columns:
-                if col != self.index_column:
-                    if not copy.groupby(self.index_column)[col].nunique().le(1).all():
-                        independant_cols.append(col)
-            if independant_cols:
-                raise ValueError(f"Error: columns {independant_cols} do not fully depend on index column '{self.index_column}'")
-
-            copy[self.index_column] = copy[self.index_column].apply(utils.to_string)
-            for col in copy.select_dtypes(exclude=['number', bool]).columns:
-                copy[col] = copy[col].apply(utils.to_string)
-                
-        utils.merge_dimesion_members(
-            data=copy,
-            workspace_id=workspace_id,
-            dimension_id=self.id,
-            index_column=self.index_column,
-            labels_column=self.labels_column,
+            merge_members=merge_members,
             environment=environment,
         )
 
@@ -328,10 +291,10 @@ class Workspace:
         del self.measures[measure_id]
         return self
 
-    def to_dwh(self) -> Self:
+    def to_dwh(self, merge_dimension_members : bool = False) -> Self:
         utils.upload_workspace(self.id, self.label, self.source, self.note)
         for dim in self.dimensions.values():
-            dim.to_dwh(self.id, self.environment)
+            dim.to_dwh(self.id, merge_dimension_members, environment=self.environment)
         for measure in self.measures.values():
             measure.to_dwh(self.id, self.environment)
         time.sleep(3)
@@ -342,3 +305,4 @@ class Workspace:
     def upload_data(self, mode: str | None = None, rows_per_file: int | None = None) -> Self:
         for schema in self.schemas.values():
             schema.upload_data(self.id, mode=mode, rows_per_file=rows_per_file, environment=self.environment)
+        return self
