@@ -28,15 +28,22 @@ class Dimension:
             else:
                 raise ValueError("id and index_column cannot both be None if data is a DataFrame.")
         self.id = id
+        
         if label is None:
             label = self.id
         self.label = label
+        
         if role not in (None, "time", "geo"):
             raise ValueError("role must be 'time', 'geo' or None")
         self.role = role
-        if isinstance(data, pd.DataFrame) and index_column is None:
-            raise ValueError("index_column must be provided when data is a DataFrame.")
+        
+        if index_column is None:
+            if isinstance(data, pd.Series):
+                index_column = data.name
+            else:
+                raise ValueError("index_column must be provided when data is a DataFrame.")
         self.index_column = index_column
+        
         self.labels_column = labels_column
 
     def to_dwh(self, workspace_id: str, environment: str = "review"):
@@ -63,6 +70,7 @@ class Dimension:
             copy[self.index_column] = copy[self.index_column].apply(utils.to_string)
             for col in copy.select_dtypes(exclude=['number', bool]).columns:
                 copy[col] = copy[col].apply(utils.to_string)
+                
         utils.upload_dimesion(
             data=copy,
             workspace_id=workspace_id,
@@ -73,6 +81,45 @@ class Dimension:
             labels_column=self.labels_column,
             environment=environment,
         )
+
+    def update_members(self, workspace_id: str, environment: str = "review"):
+        if not utils.dimension_exists(workspace_id, self.id, environment=environment):
+            self.to_dwh(workspace_id, environment=environment)
+            return
+        
+        copy = self.data.copy()
+        if isinstance(copy, pd.Series):
+            copy = copy.drop_duplicates().sort_values()
+            if copy.isna().any():
+                raise ValueError(f"Error: dimension '{self.id}' contains null values")
+            copy = copy.apply(utils.to_string)
+        else:
+            copy = copy.drop_duplicates().sort_values(by=self.index_column)
+
+            # Check if index_column is unique key for dimension
+            if copy[self.index_column].isna().any():
+                raise ValueError(f"Error: column '{self.index_column}' contains null values")
+            independant_cols = []
+            for col in copy.columns:
+                if col != self.index_column:
+                    if not copy.groupby(self.index_column)[col].nunique().le(1).all():
+                        independant_cols.append(col)
+            if independant_cols:
+                raise ValueError(f"Error: columns {independant_cols} do not fully depend on index column '{self.index_column}'")
+
+            copy[self.index_column] = copy[self.index_column].apply(utils.to_string)
+            for col in copy.select_dtypes(exclude=['number', bool]).columns:
+                copy[col] = copy[col].apply(utils.to_string)
+                
+        utils.merge_dimesion_members(
+            data=copy,
+            workspace_id=workspace_id,
+            dimension_id=self.id,
+            index_column=self.index_column,
+            labels_column=self.labels_column,
+            environment=environment,
+        )
+
 
 class Measure:
     def __init__(
@@ -129,6 +176,9 @@ class Schema:
         self.label = label
         self.dimensions = []
         self.measures = []
+        
+        self.data_upload_params = None
+        
         self._append_owner_dimensions = None
         self._append_owner_measures = None
 
@@ -190,6 +240,40 @@ class Schema:
             environment=environment,
         )
         return self
+    
+    def set_data_upload_params(self, mode: str | None = "replace", rows_per_file: int | None = None) -> Self:
+        self.data_upload_params = {
+            "mode": mode,
+            "rows_per_file": rows_per_file,
+        }
+        return self
+    
+    def upload_data(self, workspace_id: str, mode: str | None = None, rows_per_file: int | None = None, environment: str = "review") -> Self:
+        columns_to_drop = []
+        for col in self.df.columns:
+            for dim in self.dimensions:
+                if isinstance(dim.data, pd.DataFrame) and col != dim.index_column and col in dim.data.columns:
+                    columns_to_drop.append(col)
+                    break
+                
+        data = self.df.drop(columns=columns_to_drop).copy()
+        
+        data.rename(columns={dim.index_column: dim.id for dim in self.dimensions}, inplace=True)
+        
+        if mode is None and self.data_upload_params is not None:
+            mode = self.data_upload_params.get("mode", "replace")
+        if rows_per_file is None and self.data_upload_params is not None:
+            rows_per_file = self.data_upload_params.get("rows_per_file", None)
+
+        utils.upload_data_to_bucket(
+            workspace_id,
+            self.id,
+            data,
+            mode=mode,
+            rows_per_file=rows_per_file,
+            environment=environment,
+        )
+        return self
 
 
 class Workspace:
@@ -244,7 +328,7 @@ class Workspace:
         del self.measures[measure_id]
         return self
 
-    def to_dwh(self):
+    def to_dwh(self) -> Self:
         utils.upload_workspace(self.id, self.label, self.source, self.note)
         for dim in self.dimensions.values():
             dim.to_dwh(self.id, self.environment)
@@ -253,3 +337,8 @@ class Workspace:
         time.sleep(3)
         for schema in self.schemas.values():
             schema.to_dwh(self.id, self.environment)
+        return self
+    
+    def upload_data(self, mode: str | None = None, rows_per_file: int | None = None) -> Self:
+        for schema in self.schemas.values():
+            schema.upload_data(self.id, mode=mode, rows_per_file=rows_per_file, environment=self.environment)
