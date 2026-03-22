@@ -332,7 +332,11 @@ def upload_data_to_bucket(
         n_chunks = len(old_blobs)
         if n_chunks == 0:
             n_chunks = 1
-        if len(data) / n_chunks < rows_per_file:
+        if len(data) < n_chunks:
+            raise ValueError(f"Cannot split data into {n_chunks} files because there are only {len(data)} rows. Please use a different mode or verify data integrity.")
+        if rows_per_file is None:
+            rows_per_file = -(len(data) // -n_chunks)  # round up
+        elif len(data) / n_chunks < rows_per_file:
             rows_per_file = -(len(data) // -n_chunks) # round up
             logger.info(f"Adjusting rows_per_file to {rows_per_file} to fit the data into at least {n_chunks} files.")
         start = 0
