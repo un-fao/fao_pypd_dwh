@@ -6,6 +6,7 @@ This library adds some barebones functionality to remove a lot of boilerplate co
 - Create a Schema object from your dataframe
 - Use the set_dimensions() and set_measures() methods. You can either pass strings or use Dimension/Measure objects for more control.
 - Upload the jsonstats to the DWH with workspace's to_dwh() method
+- Optionally you may also upload your fact table(s) with the upload_data method. Use mode="append"|"replace"|"chunking".
 
 ```
 import fao_pypd_dwh as dwh
@@ -40,7 +41,12 @@ schema.set_measures([dwh.Measure(df.measure_col, label="Measure Label", unit="kg
 
 workspace.add_schema(schema)
 workspace.to_dwh()
+workspace.upload_data()
 ```
+
+While the workspace to_dwh method will upload all it's related contents, all the DWH objects can also be uploaded independently.
+You may define the child-parents relationship of a dimension by passing the parents_column parameter in the Dimension definition. The parents column must contain objects of the same type as the index column or tuples/lists. A column of individual values mixed with tuples/lists is also accepted.
+DataFrame/Series objects are passed by reference and not modified by this library. You may edit them after you define your DWH objects. Dimensions can be initialized using Series/DataFrames that originate from a different DataFrame than the one used to define the relative Schema. The library uses the column names to identify which columns are part of the a schema's defined dimensions or its additional fields.
 
 # Installation
 ```

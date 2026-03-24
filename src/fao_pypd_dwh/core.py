@@ -15,6 +15,7 @@ class Dimension:
         role: str | None = None,
         index_column: str | None = None,
         labels_column: str | None = None,
+        parents_column: str | None = None
     ):
         self.data = data
         if id is None:
@@ -28,23 +29,25 @@ class Dimension:
             else:
                 raise ValueError("id and index_column cannot both be None if data is a DataFrame.")
         self.id = id
-        
+
         if label is None:
             label = self.id
         self.label = label
-        
+
         if role not in (None, "time", "geo"):
             raise ValueError("role must be 'time', 'geo' or None")
         self.role = role
-        
+
         if index_column is None:
             if isinstance(data, pd.Series):
                 index_column = data.name
             else:
                 raise ValueError("index_column must be provided when data is a DataFrame.")
         self.index_column = index_column
-        
+
         self.labels_column = labels_column
+
+        self.parents_column = parents_column
 
     def to_dwh(self, workspace_id: str, merge_members: bool = False, environment: str = "review"):
         copy = self.data.copy()
@@ -54,6 +57,10 @@ class Dimension:
                 raise ValueError(f"Error: dimension '{self.id}' contains null values")
             copy = copy.apply(utils.to_string)
         else:
+            if self.parents_column:
+                copy[self.parents_column] = copy[self.parents_column].apply(
+                    lambda x: tuple(x) if isinstance(x, list) else x
+                )
             copy = copy.drop_duplicates().sort_values(by=self.index_column)
 
             # Check if index_column is unique key for dimension
@@ -69,8 +76,11 @@ class Dimension:
 
             copy[self.index_column] = copy[self.index_column].apply(utils.to_string)
             for col in copy.select_dtypes(exclude=['number', bool]).columns:
-                copy[col] = copy[col].apply(utils.to_string)
-                
+                if col == self.parents_column:
+                    copy[col] = copy[col].apply(lambda x: tuple(utils.to_string(i) for i in x) if isinstance(x, tuple) else utils.to_string(x))
+                else:
+                    copy[col] = copy[col].apply(utils.to_string)
+
         utils.upload_dimesion(
             data=copy,
             workspace_id=workspace_id,
@@ -79,6 +89,7 @@ class Dimension:
             role=self.role,
             index_column=self.index_column,
             labels_column=self.labels_column,
+            parents_column=self.parents_column,
             merge_members=merge_members,
             environment=environment,
         )

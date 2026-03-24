@@ -25,7 +25,7 @@ def to_string(value) -> str:
 def prepare_column_to_dict(data: pd.Series):
     # replace with None
     data = data.astype(object).where(pd.notna(data), None)
-    return data.to_dict()
+    return data
 
 
 def upload_workspace(id: str, label: str, source: str|None = None, note: list[str]|None = None, environment: str = "review"):
@@ -92,8 +92,9 @@ def upload_dimesion(
     role: str | None = None,
     index_column: str | None = None,
     labels_column: str | None = None,
+    parents_column: str | None = None,
     merge_members: bool = False,
-    environment: str = "review"
+    environment: str = "review",
 ):
 
     if environment in ("review", "rev", "fao-dwh-review"):
@@ -111,6 +112,8 @@ def upload_dimesion(
             raise ValueError(f"Index column {index_column} does not exist in the provided DataFrame")
         if labels_column is not None and not labels_column in data.columns:
             raise ValueError(f"Labels column {labels_column} does not exist in the provided DataFrame")
+        if parents_column is not None and not parents_column in data.columns:
+            raise ValueError(f"Parents column {parents_column} does not exist in the provided DataFrame")
 
     exists = dimension_exists(workspace_id, dimension_id, environment)
 
@@ -121,7 +124,15 @@ def upload_dimesion(
             raise ValueError("index_column must be provided when data is a DataFrame.")
         jsonstat_dict["category"] = {"index": data[index_column].tolist()}
         if labels_column:
-            jsonstat_dict["category"]["label"] = prepare_column_to_dict(data.set_index(index_column)[labels_column])
+            jsonstat_dict["category"]["label"] = prepare_column_to_dict(data.set_index(index_column)[labels_column]).to_dict()
+        if parents_column:
+            hierarchy = data[[index_column, parents_column]].explode(column=parents_column)
+            hierarchy = hierarchy[hierarchy[parents_column].notna()]
+            if hierarchy[parents_column].dtype != hierarchy[index_column].dtype:
+                raise ValueError("The type of parents_column must be the same as the type of index_column or a tuple of that same type.")
+            if not hierarchy[parents_column].isin(data[index_column]).all():
+                raise ValueError("All values in parents_column must be in index_column.")
+            jsonstat_dict["category"]["child"] = prepare_column_to_dict(hierarchy.groupby(parents_column)[index_column].apply(list)).to_dict()
     else:
         jsonstat_dict["category"] = {"index": data.tolist()}
 
@@ -136,8 +147,8 @@ def upload_dimesion(
 
     if isinstance(data, pd.DataFrame):
         for col in data.columns:
-            if col != index_column and col != labels_column:
-                jsonstat_dict["extension"]["additional_bq_fields"][col] = prepare_column_to_dict(data[[index_column, col]].set_index(index_column)[col])
+            if col != index_column and col != labels_column and col != parents_column:
+                jsonstat_dict["extension"]["additional_bq_fields"][col] = prepare_column_to_dict(data[[index_column, col]].set_index(index_column)[col]).to_dict()
 
     logger.info(json.dumps(jsonstat_dict))
 
