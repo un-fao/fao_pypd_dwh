@@ -7,6 +7,8 @@ import pandas as pd
 
 
 class Dimension:
+    """Represents a dimension in the FAO Data Warehouse."""
+
     def __init__(
         self,
         data: pd.DataFrame | pd.Series,
@@ -17,6 +19,20 @@ class Dimension:
         labels_column: str | None = None,
         parents_column: str | None = None
     ):
+        """Initializes a Dimension object.
+
+        Args:
+            data: The source data (DataFrame or Series).
+            id: Unique identifier for the dimension. If None, derived from data or index_column.
+            label: Human-readable label. Defaults to id.
+            role: Semantic role ('time', 'geo', or None).
+            index_column: The column to use as the primary key for the dimension.
+            labels_column: The column containing descriptive labels for dimension members.
+            parents_column: The column defining hierarchical relationships.
+
+        Raises:
+            ValueError: If required identifiers cannot be inferred from data.
+        """
         self.data = data
         if id is None:
             if isinstance(data, pd.Series):
@@ -50,6 +66,15 @@ class Dimension:
         self.parents_column = parents_column
 
     def to_dwh(self, workspace_id: str, merge_members: bool = False, environment: str = "review"):
+        """Uploads the dimension definition and members to the DWH.
+
+        Processes the data (deduplication, sorting, string conversion) and performs validation.
+
+        Args:
+            workspace_id: The ID of the workspace this dimension belongs to.
+            merge_members: If True, patches the dimension instead of replacing it.
+            environment: Target environment ('review' or 'prod').
+        """
         copy = self.data.copy()
         if isinstance(copy, pd.Series):
             copy = copy.drop_duplicates().sort_values()
@@ -96,18 +121,33 @@ class Dimension:
 
 
 class Measure:
+    """Represents a measure (metric) in the FAO Data Warehouse."""
+
     def __init__(
         self,
         data: pd.Series | None = None,
         id: str | None = None,
         label: str | None = None,
-        unit: str|None = None,
-        precision: int|None = None,
-        min = None,
-        max = None,
-        nodata = None,
-        aggregator: str|None = 'SUM',
+        unit: str | None = None,
+        precision: int | None = None,
+        min=None,
+        max=None,
+        nodata=None,
+        aggregator: str | None = 'SUM',
     ):
+        """Initializes a Measure object.
+
+        Args:
+            data: The source data for the measure.
+            id: Unique identifier. If None, inferred from data name.
+            label: Descriptive label. Defaults to id.
+            unit: Unit of measurement (e.g., 'kg', 'USD').
+            precision: Decimal precision for the values.
+            min: Minimum allowed value.
+            max: Maximum allowed value.
+            nodata: Value representing missing data.
+            aggregator: Aggregation method (e.g., 'SUM', 'AVG', 'COUNT').
+        """
         self.data = data
         if id is None:
             if data is not None and data.name is not None:
@@ -125,7 +165,14 @@ class Measure:
         self.nodata = nodata
         self.aggregator = aggregator
 
-    def to_dwh(self, workspace_id: str, environment: str = "review"):
+    def to_dwh(self, workspace_id: str, touch_if_exists: bool = False, environment: str = "review"):
+        """Uploads measure metadata to the DWH.
+
+        Args:
+            workspace_id: The ID of the workspace this measure belongs to.
+            touch_if_exists: If True, patches existing measures to update "updated" field.
+            environment: Target environment ('review' or 'prod').
+        """
         utils.upload_measure(
             workspace_id,
             self.id,
@@ -136,13 +183,23 @@ class Measure:
             self.max,
             self.nodata,
             self.aggregator,
+            touch_if_exists,
             environment=environment,
         )
 
 
 class Schema:
 
+    """Represents a schema (dataset structure) in the FAO Data Warehouse."""
+
     def __init__(self, df:pd.DataFrame, id:str, label:str|None = None):
+        """Initializes a Schema object.
+
+        Args:
+            df: The main DataFrame containing the facts and associated dimensions.
+            id: Unique identifier for the schema.
+            label: Descriptive label. Defaults to id.
+        """
         self.df = df
         self.id = id
         if label is None:
@@ -157,6 +214,14 @@ class Schema:
         self._append_owner_measures = None
 
     def set_dimensions(self, dimensions:list[Dimension|str]) -> Self:
+        """Defines the dimensions associated with this schema.
+
+        Args:
+            dimensions: List of Dimension objects or column names to be treated as dimensions.
+
+        Returns:
+            The Schema instance for chaining.
+        """
         for dim in dimensions:
             if isinstance(dim, str):
                 dim = Dimension(data=self.df[dim])
@@ -166,6 +231,14 @@ class Schema:
         return self
 
     def set_measures(self, measures:list[Measure|str]) -> Self:
+        """Defines the measures associated with this schema.
+
+        Args:
+            measures: List of Measure objects or column names to be treated as measures.
+
+        Returns:
+            The Schema instance for chaining.
+        """
         for measure in measures:
             if isinstance(measure, str):
                 measure = Measure(data=self.df[measure])
@@ -180,7 +253,17 @@ class Schema:
         if self._append_owner_measures is not None:
             self._append_owner_measures(*self.measures)
 
-    def to_dwh(self, workspace_id: str, environment: str = "review") -> Self:
+    def to_dwh(self, workspace_id: str, touch_if_exists: bool = False, environment: str = "review") -> Self:
+        """Uploads the schema definition to the DWH.
+
+        Args:
+            workspace_id: The ID of the workspace this schema belongs to.
+            touch_if_exists: If True, patches existing schemas to update "updated" field.
+            environment: Target environment ('review' or 'prod').
+
+        Returns:
+            The Schema instance for chaining.
+        """
         dim_ids = [i.id for i in self.dimensions]
         mes_ids = [i.id for i in self.measures]
         additional = []
@@ -211,11 +294,21 @@ class Schema:
             [i.id for i in self.dimensions if i.role == "time"],
             [i.id for i in self.dimensions if i.role == "geo"],
             additional,
+            touch_if_exists,
             environment=environment,
         )
         return self
     
     def set_data_upload_params(self, mode: str | None = "replace", rows_per_file: int | None = None) -> Self:
+        """Configures default parameters for data uploads. Can be used when uploading multiple schemas from the Workspace object they belong to with different parameters.
+
+        Args:
+            mode: Upload mode ('replace', 'append', 'chunking').
+            rows_per_file: Number of rows per file for chunking mode.
+
+        Returns:
+            The Schema instance for chaining.
+        """
         self.data_upload_params = {
             "mode": mode,
             "rows_per_file": rows_per_file,
@@ -223,6 +316,17 @@ class Schema:
         return self
     
     def upload_data(self, workspace_id: str, mode: str | None = None, rows_per_file: int | None = None, environment: str = "review") -> Self:
+        """Uploads the actual fact table data to the DWH bucket.
+
+        Args:
+            workspace_id: The ID of the workspace.
+            mode: Upload mode. Overrides set_data_upload_params if provided.
+            rows_per_file: Chunk size. Overrides set_data_upload_params if provided.
+            environment: Target environment ('review' or 'prod').
+
+        Returns:
+            The Schema instance for chaining.
+        """
         columns_to_drop = []
         for col in self.df.columns:
             for dim in self.dimensions:
@@ -252,6 +356,8 @@ class Schema:
 
 class Workspace:
 
+    """Represents a Workspace in the FAO Data Warehouse, containing dimensions, measures, and schemas."""
+
     def __init__(
         self,
         id: str,
@@ -260,6 +366,15 @@ class Workspace:
         note: list[str] | None = None,
         environment: str = "review",
     ):
+        """Initializes a Workspace object.
+
+        Args:
+            id: Unique identifier for the workspace.
+            label: Descriptive label for the workspace.
+            source: Data source description.
+            note: Additional notes about the workspace.
+            environment: Target environment ('review' or 'prod').
+        """
         self.id = id
         self.label = label
         self.source = source
@@ -271,6 +386,14 @@ class Workspace:
         self.schemas = {}
 
     def add_schema(self, *schemas: Schema) -> Self:
+        """Adds one or more schemas to the workspace.
+
+        Args:
+            schemas: Schema objects to add.
+
+        Returns:
+            The Workspace instance for chaining.
+        """
         for schema in schemas:
             schema._append_owner_dimensions = self.add_dimension
             schema._append_owner_measures = self.add_measure
@@ -279,41 +402,99 @@ class Workspace:
         return self
 
     def remove_schema(self, schema_id: str) -> Self:
+        """Removes a schema from the workspace.
+
+        Args:
+            schema_id: ID of the schema to remove.
+
+        Returns:
+            The Workspace instance for chaining.
+        """
         self.schemas[schema_id]._append_owner_dimensions = None
         self.schemas[schema_id]._append_owner_measures = None
         del self.schemas[schema_id]
         return self
 
     def add_dimension(self, *dimensions: Dimension) -> Self:
+        """Adds one or more dimensions to the workspace.
+
+        Args:
+            dimensions: Dimension objects to add.
+
+        Returns:
+            The Workspace instance for chaining.
+        """
         for dimension in dimensions:
             self.dimensions[dimension.id] = dimension
         return self
 
     def remove_dimension(self, dimension_id: str) -> Self:
+        """Removes a dimension from the workspace.
+
+        Args:
+            dimension_id: ID of the dimension to remove.
+
+        Returns:
+            The Workspace instance for chaining.
+        """
         del self.dimensions[dimension_id]
         return self
 
     def add_measure(self, *measures: Measure) -> Self:
+        """Adds one or more measures to the workspace.
+
+        Args:
+            measures: Measure objects to add.
+
+        Returns:
+            The Workspace instance for chaining.
+        """
         for measure in measures:
             self.measures[measure.id] = measure
         return self
 
     def remove_measure(self, measure_id: str) -> Self:
+        """Removes a measure from the workspace.
+
+        Args:
+            measure_id: ID of the measure to remove.
+
+        Returns:
+            The Workspace instance for chaining.
+        """
         del self.measures[measure_id]
         return self
 
-    def to_dwh(self, merge_dimension_members : bool = False) -> Self:
+    def to_dwh(self, merge_dimension_members : bool = False, touch_if_exists: bool = False) -> Self:
+        """Syncs the entire workspace, including dimensions and measures, to the DWH.
+
+        Args:
+            merge_dimension_members: If True, dimension updates will merge members.
+            touch_if_exists: If True, patches existing schemas to update "updated" field.
+
+        Returns:
+            The Workspace instance for chaining.
+        """
         utils.upload_workspace(self.id, self.label, self.source, self.note)
         for dim in self.dimensions.values():
             dim.to_dwh(self.id, merge_dimension_members, environment=self.environment)
         for measure in self.measures.values():
-            measure.to_dwh(self.id, self.environment)
+            measure.to_dwh(self.id, touch_if_exists=touch_if_exists, environment=self.environment)
         time.sleep(3)
         for schema in self.schemas.values():
-            schema.to_dwh(self.id, self.environment)
+            schema.to_dwh(self.id, touch_if_exists=touch_if_exists, environment=self.environment)
         return self
     
     def upload_data(self, mode: str | None = None, rows_per_file: int | None = None) -> Self:
+        """Uploads data for all schemas defined in the workspace.
+
+        Args:
+            mode: Upload mode.
+            rows_per_file: Chunk size for upload.
+
+        Returns:
+            The Workspace instance for chaining.
+        """
         for schema in self.schemas.values():
             schema.upload_data(self.id, mode=mode, rows_per_file=rows_per_file, environment=self.environment)
         return self

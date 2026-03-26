@@ -183,6 +183,7 @@ def upload_measure(
     max=None,
     nodata=None,
     aggregator: str | None = "SUM",
+    touch_if_exists: bool = False,
     environment: str = "review",
 ):
     if environment in ("review", "rev", "fao-dwh-review"):
@@ -197,6 +198,12 @@ def upload_measure(
     res = requests.get(f"{api_base}/workspaces/{workspace_id}/measures/{measure_id}")
     if res.status_code == 200:
         logger.info(f"Measure {workspace_id}/{measure_id} already exists")
+        if touch_if_exists:
+            res = requests.patch(
+                f"{api_base}/workspaces/{workspace_id}/measures/{measure_id}",
+                json={"extension": {}},
+            )
+            res.raise_for_status()
         return
 
     jsonstat_dict = {
@@ -243,6 +250,7 @@ def upload_schema(
     time_dims: list[str],
     geo_dims: list[str],
     additional_bq_fields: list[str],
+    touch_if_exists: bool = False,
     environment: str = "review",
 ):
     
@@ -258,6 +266,12 @@ def upload_schema(
     res = requests.get(f"{api_base}/workspaces/{workspace_id}/schemas/{schema_id}")
     if res.status_code == 200:
         logger.info(f"Schema {workspace_id}/{schema_id} already exists")
+        if touch_if_exists:
+            res = requests.patch(
+                f"{api_base}/workspaces/{workspace_id}/schemas/{schema_id}",
+                json={"extension": {}}
+            )
+            res.raise_for_status()
         return
 
     jsonstat_dict = {
