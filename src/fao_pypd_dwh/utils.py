@@ -316,35 +316,41 @@ def upload_data_to_bucket(
 
     if environment in ("review", "rev", "fao-dwh-review"):
         bucket_prefix = BUCKET_PREFIX_REVIEW
-        datalake_bucket = DATALAKE_BUCKET_REVIEW
+        project_id = GCP_PROJECT_REVIEW
     elif environment in ("prod", "production", "fao-dwh"):
         bucket_prefix = BUCKET_PREFIX_PROD
-        datalake_bucket = DATALAKE_BUCKET_PROD
+        project_id = GCP_PROJECT_PROD
     else:
         raise ValueError(f"Unknown environment: {environment}. Please use 'review' or 'production'.")
 
     try:
-        from google.cloud import storage
+        from google.cloud import storage, bigquery
     except ImportError:
-        raise ImportError("google-cloud-storage library is required to upload data to bucket. Please install it with 'pip install google-cloud-storage'.")
+        raise ImportError("google-cloud-storage and google-cloud-bigquery libraries are required to upload data to bucket. Please install them.")
 
     gcs_client = storage.Client()
+    bq_client = bigquery.Client(project=project_id)
 
-    data_bucket = gcs_client.bucket(datalake_bucket)
+    # Query BigQuery for existing ingestion IDs instead of listing blobs in GCS
+    try:
+        query = f"SELECT DISTINCT _data_ingestion_id FROM `{project_id}.{workspace_id}.fct_{schema_id}`"
+        query_job = bq_client.query(query)
+        old_ingestion_ids = [row["_data_ingestion_id"] for row in query_job.result()]
+    except Exception:
+        old_ingestion_ids = []
+
     upload_bucket = gcs_client.bucket(f"{bucket_prefix}-{workspace_id}")
 
-    old_blobs = list(data_bucket.list_blobs(prefix=f"{workspace_id}/data/{schema_id}/"))
-
     if mode is None:
-        mode = "replace" if len(old_blobs) == 1 else "append"
+        mode = "replace" if len(old_ingestion_ids) == 1 else "append"
     elif mode == "replace":
-        if len(old_blobs) == 0:
+        if len(old_ingestion_ids) == 0:
             mode = "append"
-        elif len(old_blobs) > 1:
-            raise ValueError(f"Cannot replace data for schema {schema_id} in workspace {workspace_id} because there are multiple files in the data bucket. Please use mode='append' or clean the data bucket before using mode='replace'.")
+        elif len(old_ingestion_ids) > 1:
+            raise ValueError(f"Cannot replace data for schema {schema_id} in workspace {workspace_id} because there are multiple unique _data_ingestion_id values in the BigQuery table. Please use mode='append' or clean the table before using mode='replace'.")
 
     if mode == "replace":
-        file_name = old_blobs[0].name.replace(f"{workspace_id}/data/{schema_id}/", "")
+        file_name = f"{old_ingestion_ids[0]}.csv"
     elif mode == "append":
         file_name = f"{schema_id}::part-0.csv"
 
@@ -354,7 +360,7 @@ def upload_data_to_bucket(
         blob.upload_from_string(csv)
         logger.info(f"Uploaded {file_name} to bucket {bucket_prefix}-{workspace_id}")
     else:
-        n_chunks = len(old_blobs)
+        n_chunks = len(old_ingestion_ids)
         if n_chunks == 0:
             n_chunks = 1
         if len(data) < n_chunks:
