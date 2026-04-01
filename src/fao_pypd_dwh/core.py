@@ -65,14 +65,14 @@ class Dimension:
 
         self.parents_column = parents_column
 
-    def to_dwh(self, workspace_id: str, merge_members: bool = False, environment: str = "review"):
+    def to_dwh(self, workspace_id: str, merge_members: bool = True, environment: str = "review"):
         """Uploads the dimension definition and members to the DWH.
 
         Processes the data (deduplication, sorting, string conversion) and performs validation.
 
         Args:
             workspace_id: The ID of the workspace this dimension belongs to.
-            merge_members: If True, patches the dimension instead of replacing it.
+            merge_members: If True, patches the dimension instead of replacing it. Warning: setting this to False will fail if any schema uses this dimension
             environment: Target environment ('review' or 'prod').
         """
         copy = self.data.copy()
@@ -465,11 +465,11 @@ class Workspace:
         del self.measures[measure_id]
         return self
 
-    def to_dwh(self, merge_dimension_members : bool = False, touch_if_exists: bool = False) -> Self:
+    def to_dwh(self, merge_dimension_members : bool = True, touch_if_exists: bool = False) -> Self:
         """Syncs the entire workspace, including dimensions and measures, to the DWH.
 
         Args:
-            merge_dimension_members: If True, dimension updates will merge members.
+            merge_dimension_members: If True, dimension updates will merge members. Warning: setting this to False will fail if any schema uses any of the dimensions being updated
             touch_if_exists: If True, patches existing schemas to update "updated" field.
 
         Returns:

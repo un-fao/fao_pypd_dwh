@@ -278,16 +278,16 @@ def upload_schema(
         "version": "2.0", 
         "class": "dataset",
         "label": schema_label,
-        "id": dimension_ids + ["measures"],
-        "size": [1] * (len(dimension_ids) + 1),
+        "id": dimension_ids + (["measures"] if measure_ids else []),
+        "size": [1] * (len(dimension_ids) + (1 if measure_ids else 0)),
         "role": {
             "time": time_dims,
             "geo": geo_dims,
-            "metric":["measures"]
+            "metric":["measures"] if measure_ids else []
         },
         "value": [],
         "dimension": {id: {"href":f"{api_base}/workspaces/{workspace_id}/dimensions/{id}"} for id in dimension_ids}
-            | {"measures": {"href":f"{api_base}/workspaces/{workspace_id}/measures:combine?{'&'.join([f'measure_ids={id}' for id in measure_ids])}"}},
+            | ({"measures": {"href":f"{api_base}/workspaces/{workspace_id}/measures:combine?{'&'.join([f'measure_ids={id}' for id in measure_ids])}"}} if measure_ids else {}),
         "extension": {
             "resource_id": schema_id,
             "additional_bq_fields":{}
