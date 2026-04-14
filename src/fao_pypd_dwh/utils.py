@@ -309,6 +309,7 @@ def upload_data_to_bucket(
     data: pd.DataFrame,
     mode: str | None = "replace",
     rows_per_file: int | None = None,
+    ingestion_id: str | None = None,
     environment: str = "review",
 ):
     if mode not in ("replace", "append", "chunking", None):
@@ -331,7 +332,6 @@ def upload_data_to_bucket(
     gcs_client = storage.Client()
     bq_client = bigquery.Client(project=project_id)
 
-    # Query BigQuery for existing ingestion IDs instead of listing blobs in GCS
     try:
         query = f"SELECT DISTINCT _data_ingestion_id FROM `{project_id}.{workspace_id}.fct_{schema_id}`"
         query_job = bq_client.query(query)
@@ -350,9 +350,15 @@ def upload_data_to_bucket(
             raise ValueError(f"Cannot replace data for schema {schema_id} in workspace {workspace_id} because there are multiple unique _data_ingestion_id values in the BigQuery table. Please use mode='append' or clean the table before using mode='replace'.")
 
     if mode == "replace":
-        file_name = f"{old_ingestion_ids[0]}.csv"
+        if ingestion_id:
+            file_name = f"{ingestion_id}.csv"
+        else:
+            file_name = f"{old_ingestion_ids[0]}.csv"
     elif mode == "append":
-        file_name = f"{schema_id}::part-0.csv"
+        if ingestion_id:
+            file_name = f"{ingestion_id}.csv"
+        else:
+            file_name = f"{schema_id}::part-{len(old_ingestion_ids)}.csv"
 
     if mode != "chunking":
         csv = data.to_csv(index=False)

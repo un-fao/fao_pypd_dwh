@@ -299,12 +299,13 @@ class Schema:
         )
         return self
     
-    def set_data_upload_params(self, mode: str | None = "replace", rows_per_file: int | None = None) -> Self:
+    def set_data_upload_params(self, mode: str | None = "replace", rows_per_file: int | None = None, ingestion_id: str | None = None) -> Self:
         """Configures default parameters for data uploads. Can be used when uploading multiple schemas from the Workspace object they belong to with different parameters.
 
         Args:
             mode: Upload mode ('replace', 'append', 'chunking').
             rows_per_file: Number of rows per file for chunking mode.
+            ingestion_id: ID for the data ingestion for modes 'append' and 'replace'.
 
         Returns:
             The Schema instance for chaining.
@@ -312,16 +313,18 @@ class Schema:
         self.data_upload_params = {
             "mode": mode,
             "rows_per_file": rows_per_file,
+            "ingestion_id": ingestion_id,
         }
         return self
     
-    def upload_data(self, workspace_id: str, mode: str | None = None, rows_per_file: int | None = None, environment: str = "review") -> Self:
+    def upload_data(self, workspace_id: str, mode: str | None = None, rows_per_file: int | None = None, ingestion_id: str | None = None, environment: str = "review") -> Self:
         """Uploads the actual fact table data to the DWH bucket.
 
         Args:
             workspace_id: The ID of the workspace.
             mode: Upload mode. Overrides set_data_upload_params if provided.
             rows_per_file: Chunk size. Overrides set_data_upload_params if provided.
+            ingestion_id: ID for the data ingestion for modes 'append' and 'replace'. Overrides set_data_upload_params if provided.
             environment: Target environment ('review' or 'prod').
 
         Returns:
@@ -342,6 +345,8 @@ class Schema:
             mode = self.data_upload_params.get("mode", "replace")
         if rows_per_file is None and self.data_upload_params is not None:
             rows_per_file = self.data_upload_params.get("rows_per_file", None)
+        if ingestion_id is None and self.data_upload_params is not None:
+            ingestion_id = self.data_upload_params.get("ingestion_id", None)
 
         utils.upload_data_to_bucket(
             workspace_id,
@@ -349,6 +354,7 @@ class Schema:
             data,
             mode=mode,
             rows_per_file=rows_per_file,
+            ingestion_id=ingestion_id,
             environment=environment,
         )
         return self
