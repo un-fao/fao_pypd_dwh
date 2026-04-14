@@ -346,9 +346,9 @@ def upload_data_to_bucket(
     elif mode == "replace":
         if len(old_ingestion_ids) == 0:
             mode = "append"
-        elif len(old_ingestion_ids) > 1:
-            raise ValueError(f"Cannot replace data for schema {schema_id} in workspace {workspace_id} because there are multiple unique _data_ingestion_id values in the BigQuery table. Please use mode='append' or clean the table before using mode='replace'.")
-
+        elif len(old_ingestion_ids) > 1 and ingestion_id is None:
+            raise ValueError(f"Multiple ingestion IDs found for schema {schema_id} in workspace {workspace_id}. Please specify an ingestion_id to replace or use mode 'append' or 'chunking'.")
+            
     if mode == "replace":
         if ingestion_id:
             file_name = f"{ingestion_id}.csv"
